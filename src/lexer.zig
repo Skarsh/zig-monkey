@@ -34,12 +34,36 @@ pub const Lexer = struct {
         var tok: token.Token = token.Token.init(.illegal, char_str);
 
         switch (self.ch) {
-            '=' => tok.type = .assign,
+            '=' => {
+                if (self.peekChar() == '=') {
+                    const literal = self.input[self.position .. self.read_position + 1];
+                    tok.literal = literal;
+                    tok.type = .eq;
+                    self.readChar();
+                } else {
+                    tok.type = .assign;
+                }
+            },
             ';' => tok.type = .semicolon,
             '(' => tok.type = .lparen,
             ')' => tok.type = .rparen,
             ',' => tok.type = .comma,
             '+' => tok.type = .plus,
+            '-' => tok.type = .minus,
+            '!' => {
+                if (self.peekChar() == '=') {
+                    const literal = self.input[self.position .. self.read_position + 1];
+                    tok.literal = literal;
+                    tok.type = .not_eq;
+                    self.readChar();
+                } else {
+                    tok.type = .bang;
+                }
+            },
+            '/' => tok.type = .slash,
+            '*' => tok.type = .asterisk,
+            '<' => tok.type = .less,
+            '>' => tok.type = .greater,
             '{' => tok.type = .lbrace,
             '}' => tok.type = .rbrace,
             0 => {
@@ -95,6 +119,14 @@ pub const Lexer = struct {
         return std.ascii.isDigit(ch);
     }
 
+    fn peekChar(self: Lexer) u8 {
+        if (self.read_position >= self.input.len) {
+            return 0;
+        } else {
+            return self.input[self.read_position];
+        }
+    }
+
     fn currString(self: Lexer) []const u8 {
         if (self.position >= self.input.len) {
             return "0";
@@ -109,9 +141,21 @@ test "TestNextToken" {
         \\let five = 5;
         \\let ten = 10;
         \\let add = fn(x, y) {
-        \\x + y;
+        \\  x + y;
         \\};
+        \\
         \\let result = add(five, ten);
+        \\!-/*5;
+        \\5 < 10 > 5;
+        \\
+        \\if (5 < 10) {
+        \\  return true;
+        \\} else {
+        \\  return false;
+        \\}
+        \\
+        \\10 == 10;
+        \\10 != 9;
     ;
 
     const tests = [_]struct {
@@ -154,6 +198,47 @@ test "TestNextToken" {
         .{ .expectedType = .ident, .expectedLiteral = "ten" },
         .{ .expectedType = .rparen, .expectedLiteral = ")" },
         .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+
+        .{ .expectedType = .bang, .expectedLiteral = "!" },
+        .{ .expectedType = .minus, .expectedLiteral = "-" },
+        .{ .expectedType = .slash, .expectedLiteral = "/" },
+        .{ .expectedType = .asterisk, .expectedLiteral = "*" },
+        .{ .expectedType = .int, .expectedLiteral = "5" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .int, .expectedLiteral = "5" },
+        .{ .expectedType = .less, .expectedLiteral = "<" },
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .greater, .expectedLiteral = ">" },
+        .{ .expectedType = .int, .expectedLiteral = "5" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+
+        .{ .expectedType = .if_cond, .expectedLiteral = "if" },
+        .{ .expectedType = .lparen, .expectedLiteral = "(" },
+        .{ .expectedType = .int, .expectedLiteral = "5" },
+        .{ .expectedType = .less, .expectedLiteral = "<" },
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .rparen, .expectedLiteral = ")" },
+        .{ .expectedType = .lbrace, .expectedLiteral = "{" },
+        .{ .expectedType = .ret, .expectedLiteral = "return" },
+        .{ .expectedType = .true, .expectedLiteral = "true" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .rbrace, .expectedLiteral = "}" },
+        .{ .expectedType = .else_cond, .expectedLiteral = "else" },
+        .{ .expectedType = .lbrace, .expectedLiteral = "{" },
+        .{ .expectedType = .ret, .expectedLiteral = "return" },
+        .{ .expectedType = .false, .expectedLiteral = "false" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .rbrace, .expectedLiteral = "}" },
+
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .eq, .expectedLiteral = "==" },
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .not_eq, .expectedLiteral = "!=" },
+        .{ .expectedType = .int, .expectedLiteral = "9" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+
         .{ .expectedType = .eof, .expectedLiteral = "" },
     };
 
