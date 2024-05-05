@@ -30,7 +30,7 @@ pub const Lexer = struct {
     pub fn nextToken(self: *Lexer) token.Token {
         self.skipWhitespace();
 
-        const char_str = self.curr_string();
+        const char_str = self.currString();
         var tok: token.Token = token.Token.init(.illegal, char_str);
 
         switch (self.ch) {
@@ -95,7 +95,7 @@ pub const Lexer = struct {
         return std.ascii.isDigit(ch);
     }
 
-    fn curr_string(self: Lexer) []const u8 {
+    fn currString(self: Lexer) []const u8 {
         if (self.position >= self.input.len) {
             return "0";
         } else {
