@@ -53,7 +53,6 @@ const Lexer = struct {
                     tok.literal = self.readIdentifier();
                     return tok;
                 } else {
-                    //tok = newToken(token.ILLEGAL, self.ch);
                     tok.type = .illegal;
                 }
             },
