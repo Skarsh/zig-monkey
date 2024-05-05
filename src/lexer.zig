@@ -5,13 +5,13 @@ const token = @import("token.zig");
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
-const Lexer = struct {
+pub const Lexer = struct {
     input: []const u8,
     position: usize,
     read_position: usize,
     ch: u8,
 
-    fn new(input: []const u8) Lexer {
+    pub fn new(input: []const u8) Lexer {
         var lexer = Lexer{ .input = input, .position = 0, .read_position = 0, .ch = 0 };
         lexer.readChar();
         return lexer;
@@ -27,12 +27,10 @@ const Lexer = struct {
         self.read_position += 1;
     }
 
-    // TODO: There's a way here to not use the newToken function and hence
-    // prevent using the charToString function that has to allocate for a new string literal
-    // by using the readIdentifier on all tokens
-    fn nextToken(self: *Lexer) token.Token {
-        const char_str = self.curr_string();
+    pub fn nextToken(self: *Lexer) token.Token {
+        self.skipWhitespace();
 
+        const char_str = self.curr_string();
         var tok: token.Token = token.Token.init(.illegal, char_str);
 
         switch (self.ch) {
@@ -51,6 +49,11 @@ const Lexer = struct {
             else => {
                 if (isLetter(self.ch)) {
                     tok.literal = self.readIdentifier();
+                    tok.type = token.Token.keyword(tok.literal);
+                    return tok;
+                } else if (isDigit(self.ch)) {
+                    tok.type = .int;
+                    tok.literal = self.readNumber();
                     return tok;
                 } else {
                     tok.type = .illegal;
@@ -60,6 +63,12 @@ const Lexer = struct {
 
         self.readChar();
         return tok;
+    }
+
+    fn skipWhitespace(self: *Lexer) void {
+        while (std.ascii.isWhitespace(self.ch)) {
+            self.readChar();
+        }
     }
 
     fn readIdentifier(self: *Lexer) []const u8 {
@@ -74,6 +83,18 @@ const Lexer = struct {
         return std.ascii.isAlphabetic(ch) or ch == '_';
     }
 
+    fn readNumber(self: *Lexer) []const u8 {
+        const position = self.position;
+        while (isDigit(self.ch)) {
+            self.readChar();
+        }
+        return self.input[position..self.position];
+    }
+
+    fn isDigit(ch: u8) bool {
+        return std.ascii.isDigit(ch);
+    }
+
     fn curr_string(self: Lexer) []const u8 {
         if (self.position >= self.input.len) {
             return "0";
@@ -84,19 +105,54 @@ const Lexer = struct {
 };
 
 test "TestNextToken" {
-    const input = "=+(){},;";
+    const input =
+        \\let five = 5;
+        \\let ten = 10;
+        \\let add = fn(x, y) {
+        \\x + y;
+        \\};
+        \\let result = add(five, ten);
+    ;
 
     const tests = [_]struct {
         expectedType: token.TokenType,
         expectedLiteral: []const u8,
     }{
+        .{ .expectedType = .let, .expectedLiteral = "let" },
+        .{ .expectedType = .ident, .expectedLiteral = "five" },
         .{ .expectedType = .assign, .expectedLiteral = "=" },
-        .{ .expectedType = .plus, .expectedLiteral = "+" },
+        .{ .expectedType = .int, .expectedLiteral = "5" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .let, .expectedLiteral = "let" },
+        .{ .expectedType = .ident, .expectedLiteral = "ten" },
+        .{ .expectedType = .assign, .expectedLiteral = "=" },
+        .{ .expectedType = .int, .expectedLiteral = "10" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .let, .expectedLiteral = "let" },
+        .{ .expectedType = .ident, .expectedLiteral = "add" },
+        .{ .expectedType = .assign, .expectedLiteral = "=" },
+        .{ .expectedType = .function, .expectedLiteral = "fn" },
         .{ .expectedType = .lparen, .expectedLiteral = "(" },
+        .{ .expectedType = .ident, .expectedLiteral = "x" },
+        .{ .expectedType = .comma, .expectedLiteral = "," },
+        .{ .expectedType = .ident, .expectedLiteral = "y" },
         .{ .expectedType = .rparen, .expectedLiteral = ")" },
         .{ .expectedType = .lbrace, .expectedLiteral = "{" },
+        .{ .expectedType = .ident, .expectedLiteral = "x" },
+        .{ .expectedType = .plus, .expectedLiteral = "+" },
+        .{ .expectedType = .ident, .expectedLiteral = "y" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
         .{ .expectedType = .rbrace, .expectedLiteral = "}" },
+        .{ .expectedType = .semicolon, .expectedLiteral = ";" },
+        .{ .expectedType = .let, .expectedLiteral = "let" },
+        .{ .expectedType = .ident, .expectedLiteral = "result" },
+        .{ .expectedType = .assign, .expectedLiteral = "=" },
+        .{ .expectedType = .ident, .expectedLiteral = "add" },
+        .{ .expectedType = .lparen, .expectedLiteral = "(" },
+        .{ .expectedType = .ident, .expectedLiteral = "five" },
         .{ .expectedType = .comma, .expectedLiteral = "," },
+        .{ .expectedType = .ident, .expectedLiteral = "ten" },
+        .{ .expectedType = .rparen, .expectedLiteral = ")" },
         .{ .expectedType = .semicolon, .expectedLiteral = ";" },
         .{ .expectedType = .eof, .expectedLiteral = "" },
     };
